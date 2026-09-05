@@ -1,0 +1,38 @@
+name: Build BTT Pi1 Desktop Image
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free disk space
+        uses: descriptinc/free-disk-space@main
+        with:
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: |
+          ./compile.sh build \
+          BOARD=bigtreetech-cb1 \
+          BRANCH=current \
+          RELEASE=bookworm \
+          BUILD_DESKTOP=yes \
+          BUILD_MINIMAL=no \
+          DESKTOP_ENVIRONMENT=xfce \
+          DESKTOP_ENVIRONMENT_CONFIG_NAME=config_base \
+          KERNEL_CONFIGURE=no \
+          COMPRESS_OUTPUTIMAGE="sha,img,xz"
+
+      - name: Upload image
+        uses: actions/upload-artifact@v4
+        with:
+          name: btt-pi1-desktop
+          path: output/images/*.img.xz
