@@ -1,3 +1,43 @@
+name: Build BTT Pi1 Image
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_branch:
+        description: "内核分支（vendor=BTT官方6.6.y 推荐）"
+        type: choice
+        default: "vendor"
+        options: [vendor, current, edge]
+      release:
+        description: "发行版"
+        type: choice
+        default: "bookworm"
+        options: [bookworm, jammy, noble]
+      desktop_env:
+        description: "桌面环境（server=无桌面；noble 仅支持 xfce）"
+        type: choice
+        default: "xfce"
+        options: [xfce, gnome, kde-plasma, mate, cinnamon, server]
+      appgroups:
+        description: "应用组（bookworm: browsers,internet,programming；jammy/noble: 仅 programming；留空=不装）"
+        type: string
+        default: "browsers"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Free disk space
+        uses: descriptinc/free-disk-space@main
+        with:
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Checkout build framework
+        uses: actions/checkout@v4
       - name: Prepare host
         shell: bash
         run: |
@@ -58,3 +98,33 @@
           done
           echo "两次构建均失败"
           exit 1
+
+      - name: Dump debootstrap log on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo "=== 查找 debootstrap 日志 ==="
+          sudo find .tmp output -name "debootstrap.log" -print 2>/dev/null | while read -r f; do
+            echo "===== $f (最后 100 行) ====="
+            sudo tail -n 100 "$f"
+          done
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            .tmp/logs-*/
+            output/debug/
+          if-no-files-found: ignore
+
+      - name: Upload image
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btt-pi1-image
+          path: |
+            output/images/*.img.xz
+            output/images/*.img.xz.sha
+          if-no-files-found: error
