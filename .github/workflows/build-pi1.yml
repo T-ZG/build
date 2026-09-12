@@ -39,7 +39,14 @@ jobs:
       - name: Checkout build framework
         uses: actions/checkout@v4
 
-      - name: Build image
+      - name: Install bootstrap dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget mmdebstrap
+
+      - name: Build image (native, no Docker)
+        env:
+          PREFER_DOCKER: no   # 关键：禁止框架自动转入 Docker（容器缺 wget 导致 debootstrap 失败）
         shell: bash
         run: |
           set -e
@@ -74,7 +81,6 @@ jobs:
 
           echo "构建参数: ${ARGS[*]}"
 
-          # debootstrap 阶段网络抖动时自动重试一次（框架缓存可断点续跑）
           for attempt in 1 2; do
             if ./compile.sh build "${ARGS[@]}"; then
               exit 0
@@ -89,11 +95,21 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          echo "=== 查找 debootstrap.log ==="
-          find .tmp -name "debootstrap.log" -print 2>/dev/null | while read -r f; do
+          echo "=== 查找 debootstrap 日志 ==="
+          sudo find .tmp output -name "debootstrap.log" -print 2>/dev/null | while read -r f; do
             echo "===== $f (最后 100 行) ====="
-            tail -n 100 "$f"
+            sudo tail -n 100 "$f"
           done
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            .tmp/logs-*/
+            output/debug/
+          if-no-files-found: ignore
 
       - name: Upload image
         if: success()
